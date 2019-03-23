@@ -1,5 +1,7 @@
 --- ATLAS PARK
 
+local spawnOnce = false
+
 -- Called after MOTD for now.
 function player_connected(id)
     --Id is player entity Id
@@ -7,7 +9,20 @@ function player_connected(id)
 
     Tasks.UpdateTasksForZone('Atlas Park')
     Contacts.SpawnContacts('Atlas Park')
-   
+
+    if spawnOnce == false then
+        --spinners gather location data
+        spinSpawners()
+        spinPersists()
+        spinCivilians()
+        spinCars()
+        --RandomSpawns attempt #x creations of the type (encounter is default)
+        RandomSpawn(55)
+        RandomSpawn(110, "Civilians")
+        RandomSpawn(20, "Cars")
+        spawnOnce = true        
+    end
+
     return  ''
 end
 
