@@ -13,9 +13,9 @@ function player_connected(id)
         spinPersists()
         spinCivilians()
         spinCars()
-        --RandomSpawn(65)       --There are no SpawnDefs set up here yet
-        RandomSpawn(325, "Civilians")
-        RandomSpawn(65, "Cars")
+        RandomSpawn(80)
+        RandomSpawn(100, "Civilians")
+        RandomSpawn(25, "Cars")
         spawnOnce = true
     end
 
@@ -26,7 +26,7 @@ function npc_added(id)
     printDebug('npc_added Id: ' .. tostring(id))
     Contacts.SpawnedContact(id)
     -- Spawn next contact
-    Contacts.SpawnContacts('Atlas Park')
+    Contacts.SpawnContacts('Talos Island')
 
     return ''
 end
