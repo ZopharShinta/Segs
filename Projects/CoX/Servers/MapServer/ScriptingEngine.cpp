@@ -139,8 +139,7 @@ static void registerNetFx(sol::state &lua) {
         "set_source_location",  setSourceLocation,
         "set_target_location",  setTargetLocation,
         "attach_to_entity",  attachToEntity,
-        "lookup", lookup
-    );
+        "lookup", lookup );
 }
 
 void ScriptingEngine::registerTypes()
@@ -249,7 +248,7 @@ void ScriptingEngine::registerTypes()
           "z", &glm::vec3::z
       );
 
-      m_private->m_lua.new_usertype<CritterSpawnPoint>("CritterSpawnPoint",
+    /*  m_private->m_lua.new_usertype<CritterSpawnPoint>("CritterSpawnPoint",
           sol::constructors<CritterSpawnPoint>(),
           "name", sol::property(&CritterSpawnPoint::getName, &CritterSpawnPoint::setName),
           "isVictim", &CritterSpawnPoint::m_is_victim,
@@ -262,7 +261,7 @@ void ScriptingEngine::registerTypes()
           "allSpawnPoints", &CritterSpawnLocations::m_all_spawn_points,
           "spawnProbability", &CritterSpawnLocations::m_spawn_probability,
           "villain", &CritterSpawnLocations::m_villain_radius);
-
+*/
       m_private->m_lua["ParseContactButton"] = [this](uint32_t button_id)
         {
             QString result;
@@ -786,6 +785,32 @@ void ScriptingEngine::registerTypes()
         return getRelayRaceResult(*cl, segment);
     };
     registerNetFx(m_private->m_lua);
+
+    m_private->m_lua["NetFx"]["EntityTest"] = [this](int entityIdx, const char* fxPath)
+    {
+        QString fxName = QString::fromUtf8(fxPath);
+        MapInstance *mi = m_private->m_lua["map"];
+        Entity *e = getEntity(mi, entityIdx);
+        if(e != nullptr)
+        {
+            // Client throws "Divide by 0 exception" if entity called before location
+            NetFxHandle locFx = createNetFx(fxName);
+            setSourceLocation(locFx, glm::vec3(0,0,0));
+            setTargetLocation(locFx, glm::vec3(0,10,0));
+
+            NetFxHandle fx = createNetFx(fxName);
+            setSourceEntityAndBone(fx, entityIdx, 4); // 4 for head
+            attachToEntity(fx, e);
+        }
+    };
+
+    m_private->m_lua["NetFx"]["LocationTest"] = [this](glm::vec3 loc, const char* fxPath)
+    {
+        QString fxName = QString::fromUtf8(fxPath);
+        NetFxHandle fx = createNetFx(fxName);
+        setSourceLocation(fx, loc);
+        setTargetLocation(fx, glm::vec3(loc.x, loc.y + 10, loc.z));
+    };
 }
 int ScriptingEngine::loadAndRunFile(const QString &filename)
 {
