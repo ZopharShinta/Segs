@@ -2,9 +2,9 @@
 #include "entitydata_definitions.h"
 
 #include "Logging.h"
-#include <qt5/QtCore/QFileInfoList>
-#include <qt5/QtCore/QDir>
-#include <qt5/QtCore/QFileInfo>
+#include <QtCore/QFileInfoList>
+#include <QtCore/QDir>
+#include <QtCore/QFileInfo>
 
 const uint32_t DEFAULT_MAP_IDX = 24; // Outbreak
 
