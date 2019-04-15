@@ -494,10 +494,11 @@ void initializeNewCritterEntity(const GameDataStore &data, Entity &e, const Pars
     e.m_char->m_char_data.m_security_threat = level;
 
     // Should pull attributes for critter at X level from DB or Scripts?
-    e.m_char->m_max_attribs.m_HitPoints = 100;
-    e.m_char->m_max_attribs.m_Endurance = 100;
-    e.m_char->m_char_data.m_current_attribs.m_HitPoints = 100;
-    e.m_char->m_char_data.m_current_attribs.m_Endurance = 100;
+    e.m_char->m_max_attribs.m_HitPoints = getEntityClassHp(data, false, src->m_Class, level);
+    e.m_char->m_max_attribs.m_Endurance = getEntityClassEnd(data, false, src->m_Class, level);
+    e.m_char->m_char_data.m_current_attribs.m_HitPoints = e.m_char->m_max_attribs.m_HitPoints;
+    e.m_char->m_char_data.m_current_attribs.m_Endurance = e.m_char->m_max_attribs.m_Endurance;
+
 
     std::copy(g_world_surf_params, g_world_surf_params+2, e.m_motion_state.m_surf_mods);
 

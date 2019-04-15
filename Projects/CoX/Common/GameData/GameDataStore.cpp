@@ -601,6 +601,7 @@ int getEntityOriginIndex(const GameDataStore &data, bool is_player, const QStrin
     qCDebug(logNpcSpawn) << "Failed to locate origin index for" << origin_name;
     return -1;
 }
+
 int getEntityClassIndex(const GameDataStore &data, bool is_player, const QString &class_name)
 {
     const Parse_AllCharClasses &classes_to_search(is_player ? data.m_player_classes : data.m_other_classes);
@@ -614,6 +615,38 @@ int getEntityClassIndex(const GameDataStore &data, bool is_player, const QString
     }
     qCDebug(logNpcSpawn) << "Failed to locate class index for" << class_name;
     return -1;
+}
+
+float getEntityClassHp(const GameDataStore &data, bool is_player, const QString &class_name, uint8_t level)
+{
+    const Parse_AllCharClasses &classes_to_search(is_player ? data.m_player_classes : data.m_other_classes);
+
+    for(const CharClass_Data &classdata : classes_to_search)
+    {
+        if(class_name.compare(classdata.m_Name,Qt::CaseInsensitive)==0)
+        {
+            return classdata.m_AttribMaxMaxTable[0].m_HitPoints[level];
+        }
+
+    }
+    qCDebug(logNpcSpawn) << "Failed to locate class index for " << class_name << ".  Setting HP to 10";
+    return 10;
+}
+
+float getEntityClassEnd(const GameDataStore &data, bool is_player, const QString &class_name, uint8_t level)
+{
+    const Parse_AllCharClasses &classes_to_search(is_player ? data.m_player_classes : data.m_other_classes);
+
+    for(const CharClass_Data &classdata : classes_to_search)
+    {
+        if(class_name.compare(classdata.m_Name,Qt::CaseInsensitive)==0)
+        {
+            return classdata.m_AttribMaxMaxTable[0].m_Endurance[level];
+        }
+
+    }
+    qCDebug(logNpcSpawn) << "Failed to locate class index for " << class_name << ".  Setting Endurance to 100";
+    return 100;
 }
 
 GameDataStore &getGameData() {

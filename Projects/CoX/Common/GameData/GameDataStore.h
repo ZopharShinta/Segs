@@ -108,4 +108,6 @@ public:
 };
 int getEntityOriginIndex(const GameDataStore &data,bool is_player, const QString &origin_name);
 int getEntityClassIndex(const GameDataStore &data,bool is_player, const QString &class_name);
+float getEntityClassHp(const GameDataStore &data, bool is_player, const QString &class_name, uint8_t level);
+float getEntityClassEnd(const GameDataStore &data, bool is_player, const QString &class_name, uint8_t level);
 extern GameDataStore& getGameData();

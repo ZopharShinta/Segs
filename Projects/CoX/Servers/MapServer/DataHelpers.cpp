@@ -2019,7 +2019,7 @@ uint addVictim(MapInstance &mi, QString &name, glm::vec3 &loc, int variation, gl
     int idx = npc_store.npc_idx(npc_def);
     Entity *e = mi.m_entities.CreateGeneric(getGameData(), *npc_def, idx, variation, EntType::CRITTER);
     e->m_char->setName(npc_name);
-    e->m_is_hero = true;
+    e->m_is_hero = false;
     e->m_is_villain = false;
 
     //Should these be predefined by DB/Json/Loaded by script or something else?
