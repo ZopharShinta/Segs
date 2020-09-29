@@ -1,6 +1,6 @@
 /*
  * SEGS - Super Entity Game Server
- * http://www.segs.io/
+ * http://www.segs.dev/
  * Copyright (c) 2006 - 2019 SEGS Team (see AUTHORS.md)
  * This software is licensed under the terms of the 3-clause BSD License. See LICENSE.md for details.
  */
@@ -30,7 +30,7 @@ struct CharacterPower;
 struct PowerStance;
 class GameDataStore;
 class TradeMember;
-class Costume;
+struct Costume;
 class BitStream;
 struct ContactEntry;
 enum FloatingInfoStyle : int;
@@ -40,10 +40,13 @@ enum class ClientStates : uint8_t;
  * This file is intended to hold helper functions for methods
  * requiring access to MapClientSession or MapInstance
  */
-Entity * getEntity(MapClientSession *src, const QString &name);
-Entity * getEntity(MapClientSession *src, uint32_t idx);
+Entity * getTargetEntity(MapClientSession &sess);
+Entity * getEntity(MapClientSession *sess, const QString &name);
+Entity * getEntity(MapClientSession *sess, uint32_t idx);
 Entity * getEntity(class MapInstance *mi, uint32_t idx);
+Entity * getEntity(Entity *srcEnt, class MapInstance *mi, uint32_t idx);
 Entity * getEntityByDBID(class MapInstance *mi,uint32_t idx);
+Entity * getEntityByNameOrTarget(MapClientSession &sess, const QString &name_from_cmd);
 void    sendServerMOTD(MapClientSession *sess);
 void    positionTest(MapClientSession *tgt);
 bool    isFriendOnline(Entity &sess, uint32_t db_id);
@@ -170,5 +173,5 @@ RelayRaceResult getRelayRaceResult(MapClientSession &cl, int segment);
 void addHideAndSeekResult(MapClientSession &cl, int points);
 
 // Spawning related
-uint addEnemy(MapInstance &mi, QString &name, glm::vec3 &loc, int variation, glm::vec3 &ori, QString &npc_name, int level, QString &faction_name, int f_rank);
+uint32_t addEnemy(MapInstance &mi, QString &name, glm::vec3 &loc, int variation, glm::vec3 &ori, QString &npc_name, int level, QString &faction_name, int f_rank);
 uint addVictim(MapInstance &mi, QString &name, glm::vec3 &loc, int variation, glm::vec3 &ori, QString &npc_name);

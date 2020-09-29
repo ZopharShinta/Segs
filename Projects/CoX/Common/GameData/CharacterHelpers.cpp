@@ -1,6 +1,6 @@
 /*
  * SEGS - Super Entity Game Server
- * http://www.segs.io/
+ * http://www.segs.dev/
  * Copyright (c) 2006 - 2019 SEGS Team (see AUTHORS.md)
  * This software is licensed under the terms of the 3-clause BSD License. See LICENSE.md for details.
  */
@@ -147,6 +147,10 @@ void setAFK(Character &c, const bool is_afk, QString msg)
     if(is_afk)
         c.m_char_data.m_afk_msg = msg;
 }
+bool isAFK(Character &c)
+{
+    return c.m_char_data.m_afk;
+}
 
 void initializeCharacter(Character &c)
 {
@@ -166,6 +170,9 @@ void updateLastOnline(Character &c)
 // Toggles
 void toggleAFK(Character &c, QString msg)
 {
+    if(msg.isEmpty())
+        msg = "AFK";
+
     setAFK(c, !c.m_char_data.m_afk, msg);
 }
 

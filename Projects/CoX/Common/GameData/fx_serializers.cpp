@@ -208,15 +208,17 @@ bool loadFrom(BinStore * s, FxInfo_Condition & target)
 }
 bool loadFrom(BinStore * s, FxInfo & target)
 {
+    int flags=0;
     s->prepare();
     bool ok = true;
     // Unused/Undef tokens: FxInfo
     ok &= s->read(target.fxname);
     ok &= s->read(target.m_LifeSpan);
     ok &= s->read(target.m_Lighting);
-    ok &= s->read(target.m_Flags);
+    ok &= s->read(flags);
     ok &= s->read(target.m_PerformanceRadius);
     ok &= s->prepare_nested(); // will update the file size left
+    target.m_Flags = FxInfo_Flags(flags);
     if(s->end_encountered())
         return ok;
     QByteArray _name;
@@ -337,10 +339,12 @@ void saveTo(const Fx_AllInfos &target, const QString &baseName, bool text_format
 }
 bool loadFrom(const QString &filepath, Fx_AllInfos &target)
 {
-    return commonReadFrom(filepath,"AllFxInfos_Data",target);
+    QFSWrapper wrap;
+    return commonReadFrom(wrap,filepath,"AllFxInfos_Data",target);
 }
 bool LoadFxInfoData(const QString &fname, Fx_AllInfos &infos)
 {
+    QFSWrapper wrap;
     BinStore binfile;
 
     if(fname.contains(".crl"))
@@ -352,7 +356,7 @@ bool LoadFxInfoData(const QString &fname, Fx_AllInfos &infos)
         }
         return true;
     }
-    if(!binfile.open(fname, fxbehaviors_i0_requiredCrc))
+    if(!binfile.open(wrap,fname, fxbehaviors_i0_requiredCrc))
     {
         qCritical() << "Failed to open original bin:" << fname;
         return false;
@@ -440,10 +444,12 @@ void saveTo(const Fx_AllBehaviors &target, const QString &baseName, bool text_fo
 }
 bool loadFrom(const QString &filepath, Fx_AllBehaviors &target)
 {
-    return commonReadFrom(filepath,"Fx_AllBehaviors",target);
+    QFSWrapper wrap;
+    return commonReadFrom(wrap,filepath,"Fx_AllBehaviors",target);
 }
 bool LoadFxBehaviorData(const QString &fname, Fx_AllBehaviors &behaviors)
 {
+    QFSWrapper wrap;
     BinStore binfile;
 
     if(fname.contains(".crl"))
@@ -455,7 +461,7 @@ bool LoadFxBehaviorData(const QString &fname, Fx_AllBehaviors &behaviors)
         }
         return true;
     }
-    if(!binfile.open(fname, fxbehaviors_i0_requiredCrc))
+    if(!binfile.open(wrap,fname, fxbehaviors_i0_requiredCrc))
     {
         qCritical() << "Failed to open original bin:" << fname;
         return false;

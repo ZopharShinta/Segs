@@ -1,22 +1,21 @@
 /*
  * SEGS - Super Entity Game Server
- * http://www.segs.io/
+ * http://www.segs.dev/
  * Copyright (c) 2006 - 2019 SEGS Team (see AUTHORS.md)
  * This software is licensed under the terms of the 3-clause BSD License. See LICENSE.md for details.
  */
 
 #pragma once
-//#include "MapLink.h"
 #include "MapEventTypes.h"
 #include "BitStream.h"
-//#include "MapRef.h"
-//#include "CRUD_Events.h"
 #include <vector>
 #include <string>
 
 struct MapClientSession;
+
 namespace SEGSEvents
 {
+
 using MapLinkEvent = CRUDLink_Event; //<MapLink>
 
 // [[ev_def:type]]
@@ -53,5 +52,6 @@ explicit            EntitiesResponse();
         uint8_t     g_interpolation_bits;
         EVENT_IMPL(EntitiesResponse)
 };
+
 } // end of SEGSEvents namespace
 

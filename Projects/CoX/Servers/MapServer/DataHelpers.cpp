@@ -1,6 +1,6 @@
 /*
  * SEGS - Super Entity Game Server
- * http://www.segs.io/
+ * http://www.segs.dev/
  * Copyright (c) 2006 - 2019 SEGS Team (see AUTHORS.md)
  * This software is licensed under the terms of the 3-clause BSD License. See LICENSE.md for details.
  */
@@ -26,17 +26,34 @@
 #include "Common/GameData/Character.h"
 #include "Common/GameData/Team.h"
 #include "Common/GameData/LFG.h"
+#include "Common/Messages/EmailService/EmailEvents.h"
+#include "Common/Messages/Map/AddTimeStateLog.h"
+#include "Common/Messages/Map/ChangeTitle.h"
 #include "Common/Messages/Map/ClueList.h"
-#include "Common/Messages/Map/ContactList.h"
 #include "Common/Messages/Map/ConsoleMessages.h"
+#include "Common/Messages/Map/ContactList.h"
+#include "Common/Messages/Map/DoorMessage.h"
 #include "Common/Messages/Map/EmailHeaders.h"
 #include "Common/Messages/Map/EmailRead.h"
+#include "Common/Messages/Map/FaceEntity.h"
+#include "Common/Messages/Map/FaceLocation.h"
+#include "Common/Messages/Map/FloatingDamage.h"
+#include "Common/Messages/Map/FloatingInfo.h"
 #include "Common/Messages/Map/ForceLogout.h"
-#include "Common/Messages/Map/SendVisitLocation.h"
-#include "Common/Messages/EmailService/EmailEvents.h"
+#include "Common/Messages/Map/LevelUp.h"
 #include "Common/Messages/Map/MapEvents.h"
+#include "Common/Messages/Map/MapXferList.h"
+#include "Common/Messages/Map/SendVisitLocation.h"
+#include "Common/Messages/Map/SetClientState.h"
+#include "Common/Messages/Map/SidekickOffer.h"
+#include "Common/Messages/Map/StandardDialogCmd.h"
 #include "Common/Messages/Map/StoresEvents.h"
 #include "Common/Messages/Map/Tasks.h"
+#include "Common/Messages/Map/TeamLooking.h"
+#include "Common/Messages/Map/TeamOffer.h"
+#include "Common/Messages/Map/TimeUpdate.h"
+#include "Common/Messages/Map/TrayAdd.h"
+#include "Common/Messages/Map/VisitMapCells.h"
 #include "Logging.h"
 
 #include <QtCore/QFile>
@@ -70,65 +87,98 @@ void toggleLFG(Entity &e)
     }
 }
 
-// Poll EntityManager to return Entity by Name or IDX
-Entity * getEntity(MapClientSession *src, const QString &name)
+/**
+ * @brief   Get Entity by current Target
+ * @param   sess MapClientSession of the client that called this
+ * @return  pointer to the target entity or nullptr if it does not exist.
+ */
+Entity * getTargetEntity(MapClientSession &sess)
 {
-    MapInstance *mi = src->m_current_map;
-    EntityManager &em(mi->m_entities);
-    QString errormsg;
+    if(sess.m_ent == nullptr)
+        return nullptr;
+
+    const uint32_t idx = getTargetIdx(*sess.m_ent);
+    if(idx == 0)
+        return nullptr;
+
+    return getEntity(&sess, idx);
+}
+
+/**
+ * @brief   Poll Entity Manager for Entity by Name
+ * @param   src MapClientSession that made this call
+ * @param   name QString of the target entity name
+ * @return  pointer to the named entity, or target entity if it does not exist.
+ */
+Entity * getEntity(MapClientSession *sess, const QString &name)
+{
+    // if name is empty, get entity by target
+    if(name.isEmpty())
+        return getTargetEntity(*sess);
+
+    // if name is ours, return self
+    if(0 == name.compare(sess->m_ent->name(), Qt::CaseInsensitive))
+        return sess->m_ent;
 
     // Iterate through all active entities and return entity by name
+    MapInstance *mi = sess->m_current_map;
+    EntityManager &em(mi->m_entities);
     for (Entity* pEnt : em.m_live_entlist)
     {
         if(pEnt->name() == name)
             return pEnt;
     }
 
-    errormsg = "Entity " + name + " does not exist, or is not currently online.";
+    QString errormsg = "Entity " + name + " does not exist, or is not currently online.";
     qWarning() << errormsg;
-    sendInfoMessage(MessageChannel::USER_ERROR, errormsg, *src);
+    sendInfoMessage(MessageChannel::USER_ERROR, errormsg, *sess);
     return nullptr;
 }
 
-Entity * getEntity(MapClientSession *src, uint32_t idx)
+Entity * getEntity(MapClientSession *sess, uint32_t idx)
 {
-    MapInstance *mi = src->m_current_map;
-    EntityManager &em(mi->m_entities);
-    QString errormsg;
-
-    if(idx!=0) // Entity idx 0 is special case, so we can't return it
-    {
-        // Iterate through all active entities and return entity by idx
-        for (Entity* pEnt : em.m_live_entlist)
-        {
-            if(pEnt->m_idx == idx)
-                return pEnt;
-        }
-    }
-    errormsg = "Entity " + QString::number(idx) + " does not exist, or is not currently online.";
-    qWarning() << errormsg;
-    sendInfoMessage(MessageChannel::USER_ERROR, errormsg, *src);
-    return nullptr;
+    return getEntity(sess->m_ent, sess->m_current_map, idx);
 }
 
 Entity * getEntity(MapInstance* mi, uint32_t idx)
 {
-    EntityManager &em(mi->m_entities);
-    QString errormsg;
-
     if(idx!=0) // Entity idx 0 is special case, so we can't return it
     {
         // Iterate through all active entities and return entity by idx
+        EntityManager &em(mi->m_entities);
         for (Entity* pEnt : em.m_live_entlist)
         {
             if(pEnt->m_idx == idx)
                 return pEnt;
         }
     }
-    errormsg = "Entity " + QString::number(idx) + " does not exist, or is not currently online.";
+    QString errormsg = "Entity " + QString::number(idx) + " does not exist, or is not currently online.";
     qWarning() << errormsg;
-    //sendInfoMessage(MessageChannel::USER_ERROR, errormsg, *src);
     return nullptr;
+}
+
+/**
+ * @brief   Get an Entity based upon mapinstance and index
+ * @param   srcEnt the entity that made this call
+ * @param   mi MapInstance
+ * @param   idx the index of the target entity
+ * @return  pointer to the target entity or self if it does not exist.
+ */
+Entity * getEntity(Entity *srcEnt, MapInstance *mi, uint32_t idx)
+{
+    if(idx == 0) // Entity idx 0 is always self
+        return srcEnt;
+
+    EntityManager &em(mi->m_entities);
+    // Iterate through all active entities and return entity by idx
+    for (Entity *pEnt : em.m_live_entlist)
+    {
+        if(pEnt->m_idx == idx)
+            return pEnt;
+    }
+
+    // if no valid targets found by idx, return self
+    return srcEnt;
 }
 
 /**
@@ -137,20 +187,48 @@ Entity * getEntity(MapInstance* mi, uint32_t idx)
  * @param db_id db id of the entity to find.
  * @return pointer to the entity or nullptr if it does not exist.
  */
-Entity *getEntityByDBID(MapInstance *mi,uint32_t db_id)
+Entity *getEntityByDBID(MapInstance *mi, uint32_t db_id)
 {
-    EntityManager &em(mi->m_entities);
-    QString        errormsg;
-
     if(db_id == 0)
         return nullptr;
+
     // TODO: Iterate through all entities in Database and return entity by db_id
+    EntityManager &em(mi->m_entities);
     for (Entity *pEnt : em.m_live_entlist)
     {
         if(pEnt->m_db_id == db_id)
             return pEnt;
     }
+
     return nullptr;
+}
+
+/**
+ * @brief   Get's the target Entity based upon name or idx if avail
+ * @param   sess MapClientSession
+ * @param   target_name name string to compare to entity current target.
+ * @return  pointer to the target entity or self if it does not exist.
+ */
+Entity * getEntityByNameOrTarget(MapClientSession &sess, const QString &name_from_cmd)
+{
+    Entity *tgt = getTargetEntity(sess);
+    if(tgt != nullptr)
+    {
+        if(name_from_cmd.isEmpty() || 0 == name_from_cmd.compare(tgt->name(), Qt::CaseInsensitive))
+            return tgt;
+    }
+
+    // if we haven't returned yet, then use NAME to get target
+    tgt = getEntity(&sess, name_from_cmd);
+    if(tgt == nullptr)
+    {
+        tgt = sess.m_ent; // if tgt isn't found by name, fallback to self
+        QString msg = QString("Target %1 cannot be found. Targeting Self.").arg(name_from_cmd);
+        qCDebug(logSlashCommand) << msg;
+        sendInfoMessage(MessageChannel::USER_ERROR, msg, sess);
+    }
+
+    return tgt; // always return an entity, even if it's self
 }
 
 void sendMissionObjectiveTimer(MapClientSession &sess, QString &message, float time)
@@ -185,7 +263,7 @@ void positionTest(MapClientSession *tgt)
     QString output = "==== Position Test =======================\n";
 
     output += QString("Move Time: %1\n")
-            .arg(tgt->m_ent->m_states.current()->m_move_time, 0, 'f', 1);
+            .arg(tgt->m_ent->m_motion_state.m_move_time, 0, 'f', 1);
 
     output += QString("Prev Pos <%1, %2, %3>\n")
             .arg(tgt->m_ent->m_motion_state.m_last_pos.x, 0, 'f', 1)
@@ -280,7 +358,7 @@ QString createKioskMessage(Entity* player)
  */
 
 void getEmailHeaders(MapClientSession& sess)
-{   
+{
     if(!sess.m_ent->m_client)
     {
         qWarning() << "m_client does not yet exist!";
@@ -288,7 +366,7 @@ void getEmailHeaders(MapClientSession& sess)
     }
 
     HandlerLocator::getEmail_Handler()->putq(new EmailHeaderRequest(
-        {sess.m_ent->m_char->m_db_id}, sess.link()->session_token()));    
+        {sess.m_ent->m_char->m_db_id}, sess.link()->session_token()));
 }
 
 void sendEmail(MapClientSession& sess, QString recipient_name, QString subject, QString message)
@@ -321,7 +399,7 @@ void readEmailMessage(MapClientSession& sess, const uint32_t email_id)
         return;
     }
 
-    EmailReadRequest* msgToHandler = new EmailReadRequest({email_id}, sess.link()->session_token());
+    EmailReadRequest* msgToHandler = new EmailReadRequest({email_id,0}, sess.link()->session_token());
     HandlerLocator::getEmail_Handler()->putq(msgToHandler);
 }
 
@@ -397,7 +475,7 @@ void sendEnhanceCombineResponse(MapClientSession &sess, bool success, bool destr
 
 void sendChangeTitle(MapClientSession &sess, bool select_origin)
 {
-    sess.m_ent->m_rare_update = true; // titles have changed, resend them
+    sess.m_ent->m_entity_update_flags.setFlag(sess.m_ent->UpdateFlag::TITLES);
     //qCDebug(logSlashCommand) << "Sending ChangeTitle Dialog:" << sess.m_ent->m_idx << "select_origin:" << select_origin;
     sess.addCommand<ChangeTitle>(select_origin);
 }
@@ -471,7 +549,7 @@ void sendBrowser(MapClientSession &sess, QString &content)
 
 void sendTailorOpen(MapClientSession &sess)
 {
-    sess.m_ent->m_rare_update = false;
+    sess.m_ent->m_entity_update_flags.setFlag(sess.m_ent->UpdateFlag::MOVEMENT, false);
     sess.m_ent->m_char->m_client_window_state = ClientWindowState::Tailor;
     qCDebug(logTailor) << QString("Sending TailorOpen");
     sess.addCommand<TailorOpen>();
@@ -562,6 +640,7 @@ void updateContactStatusList(MapClientSession &sess, const Contact &updated_cont
 
     //update database contactList
     sess.m_ent->m_player->m_contacts = contacts;
+    sess.m_ent->m_entity_update_flags.setFlag(sess.m_ent->UpdateFlag::FULL);
     markEntityForDbStore(sess.m_ent, DbStoreFlags::Full);
     qCDebug(logSlashCommand) << "Sending Character Contact Database updated";
 
@@ -641,7 +720,7 @@ void sendDoorAnimExit(MapClientSession &sess, bool force_move)
  */
 void checkPower(Entity &ent, uint32_t pset_idx, uint32_t pow_idx, uint32_t tgt_idx)
 {
-    QString from_msg, to_msg;
+    QString from_msg;
     CharacterPower * ppower = nullptr;
 
     ppower = getOwnedPowerByVecIdx(ent, pset_idx, pow_idx);
@@ -658,6 +737,7 @@ void checkPower(Entity &ent, uint32_t pset_idx, uint32_t pow_idx, uint32_t tgt_i
             {
                 rpow_idx->m_activation_state = false;
                 rpow_idx->m_active_state_change = true;
+                ent.m_entity_update_flags.setFlag(ent.UpdateFlag::BUFFS); // we may have toggled a buff
                 return;
             }
         }
@@ -674,17 +754,10 @@ void checkPower(Entity &ent, uint32_t pset_idx, uint32_t pow_idx, uint32_t tgt_i
         sendFloatingInfo(*ent.m_client, from_msg, FloatingInfoStyle::FloatingInfo_Info, 0.0);
         return;
     }
-    // Target IDX of 0 is actually SELF
-    if(tgt_idx == 0)
-        tgt_idx = getIdx(ent);
 
-    // Get target and check that it's a valid entity
-    Entity *target_ent = getEntity(ent.m_client, tgt_idx);
-    if(target_ent == nullptr)
-    {
-        qCDebug(logPowers) << "Failed to find target:" << tgt_idx;
-        return;
-    }
+    // Get target, if not valid, returns self entity
+    Entity *target_ent = getEntity(&ent, ent.m_client->m_current_map, tgt_idx);
+
     if (!checkPowerTarget(ent, target_ent, tgt_idx, powtpl))
     {
         from_msg = "Invalid target";
@@ -717,12 +790,12 @@ void checkPower(Entity &ent, uint32_t pset_idx, uint32_t pow_idx, uint32_t tgt_i
  */
 void usePower(Entity &ent, uint32_t pset_idx, uint32_t pow_idx, uint32_t tgt_idx)//  ,int32_t tgt_id
 {
-    QString from_msg, to_msg;
     CharacterPower * ppower =  getOwnedPowerByVecIdx(ent, pset_idx, pow_idx);
     const Power_Data powtpl = ppower->getPowerTemplate();
-    if(tgt_idx == 0)
-        tgt_idx = getIdx(ent);
-    Entity *target_ent = getEntity(ent.m_client, tgt_idx);
+
+    // Get target, if not valid, returns self entity
+    Entity *target_ent = getEntity(&ent, ent.m_client->m_current_map, tgt_idx);
+
     if(ent.m_char->m_is_dead && powtpl.CastableAfterDeath == 0)   //Allows self rez
         return;
     if (!checkPowerTarget(ent, target_ent, tgt_idx, powtpl))
@@ -739,24 +812,17 @@ void usePower(Entity &ent, uint32_t pset_idx, uint32_t pow_idx, uint32_t tgt_idx
  */
 bool checkPowerTarget(Entity &ent, Entity *target_ent, uint32_t &tgt_idx, Power_Data powtpl)
 {
-    if(validTarget(ent, ent, powtpl.Target))                    //check self targetting first
-    {
-        target_ent = &ent;
-        tgt_idx = ent.m_idx;
-        return true;
-    }
-    else if(validTarget(*target_ent, ent, powtpl.Target))      //if not self, and if not select target...
+    if(validTarget(*target_ent, ent, powtpl.Target))      //if not self, and if not select target...
         return true;
     if (ent.m_assist_target_idx != 0)                      //try assist target
         tgt_idx = ent.m_assist_target_idx;
     else if (target_ent->m_target_idx != 0)                //try target of target
         tgt_idx = target_ent->m_target_idx;
 
-    target_ent = getEntity(ent.m_client, tgt_idx);  //check the entity is valid
+    // Get target, if not valid, returns self entity
+    target_ent = getEntity(&ent, ent.m_client->m_current_map, tgt_idx);
 
-    if (target_ent == nullptr || !validTarget(*target_ent, ent, powtpl.Target))
-        return false;
-    return true;
+    return validTarget(*target_ent, ent, powtpl.Target);
 }
 /*
  * checkPowerRecharge returns false if the power is found in the recharging power vector
@@ -780,18 +846,7 @@ bool checkPowerRange(Entity &ent, Entity &target_ent, float range)
             return false;
     return true;
 }
-bool checkPowerRange(Entity &ent, uint32_t tgt_idx, uint32_t pset_idx, uint32_t pow_idx)
-{
-    CharacterPower * ppower =  getOwnedPowerByVecIdx(ent, pset_idx, pow_idx);
-    const Power_Data powtpl = ppower->getPowerTemplate();
-    if(powtpl.Range != 0.0f)
-    {
-        Entity *target_ent = getEntity(ent.m_client, tgt_idx);
-        if(glm::distance(ent.m_entity_data.m_pos,target_ent->m_entity_data.m_pos) > powtpl.Range)
-            return false;
-    }
-    return true;
-}
+
 void queuePower(Entity &ent, uint32_t pset_idx, uint32_t pow_idx, uint32_t tgt_idx)
 {
     CharacterPower * ppower =  getOwnedPowerByVecIdx(ent, pset_idx, pow_idx);
@@ -855,19 +910,16 @@ void doPower(Entity &ent, QueuedPowers powerinput)
 {
     QString from_msg, to_msg;
     uint32_t tgt_idx = powerinput.m_tgt_idx;
-    if(tgt_idx == 0)
-        tgt_idx = getIdx(ent);
 
-    Entity *target_ent = getEntity(ent.m_client, tgt_idx);
-    if(target_ent == nullptr)
-    {
-        qCDebug(logPowers) << "Failed to find target:" << tgt_idx;
-        return;
-    }
+    // Get target, if not valid, returns self entity
+    Entity *target_ent = getEntity(&ent, ent.m_client->m_current_map, tgt_idx);
 
     CharacterPower * ppower = nullptr;
     ppower = getOwnedPowerByVecIdx(ent, powerinput.m_pow_idxs.m_pset_vec_idx, powerinput.m_pow_idxs.m_pow_vec_idx);
     const Power_Data powtpl = ppower->getPowerTemplate();
+
+    if (!checkPowerTarget(ent, target_ent, tgt_idx, powtpl))
+        return;
 
     // Face towards your target
     sendFaceEntity(*ent.m_client, tgt_idx);
@@ -909,6 +961,7 @@ void doPower(Entity &ent, QueuedPowers powerinput)
     // Update Powers to Client to show Recharging/Timers/Etc in UI
 
     setEnd(*ent.m_char, getEnd(*ent.m_char)-powtpl.EnduranceCost);      //TODO: endurance discount
+    ent.m_entity_update_flags.setFlag(ent.UpdateFlag::STATS);
 
     if (powtpl.Radius != 0.0f)           // Only AoE have a radius
     {
@@ -987,7 +1040,14 @@ void findAttrib(Entity &ent, Entity *target_ent, CharacterPower * ppower)
             {
                 target_ent = &ent;
             }
-            doAtrrib(ent, target_ent, powtpl.pAttribMod[i], ppower);
+
+            if (powtpl.pAttribMod[i].Delay == 0 && powtpl.pAttribMod[i].Period == 0)
+                doAtrrib(ent, target_ent, powtpl.pAttribMod[i], ppower);
+            else
+            {           //queue the power up to fire later or multiple times
+                target_ent->m_delayed.emplace_back(DelayedEffect{powtpl.pAttribMod[i], ppower,
+                                            powtpl.pAttribMod[i].Delay, powtpl.pAttribMod[i].Period,ent.m_idx});
+            }
         }
     }
 
@@ -1029,6 +1089,8 @@ void doAtrrib(Entity &ent, Entity *target_ent, StoredAttribMod const &mod, Chara
 
     if (lower_name == "damage")
     {
+        if (target_ent->m_char->m_is_dead)              //prevent beating a dead horse
+            return;
         GameDataStore &data(getGameData());             //TODO: apply this to all power effects, once we have strengths for every stat
         scale *= data.m_player_classes[uint32_t(getEntityClassIndex(data, true,
             ent.m_char->m_char_data.m_class_name))].m_ModTable[mod.Table.toUInt()].Values[ent.m_char->m_char_data.m_combat_level];
@@ -1048,7 +1110,33 @@ void doAtrrib(Entity &ent, Entity *target_ent, StoredAttribMod const &mod, Chara
             sendFloatingNumbers(*target_ent->m_client, target_ent->m_idx, int(-scale));
             sendInfoMessage(MessageChannel::DAMAGE, QString("%1 hits you for %2 damage!") .arg(ent.name()) .arg(-scale) , *target_ent->m_client);
         }
-        //TODO: else critterdamage() which adds aggro and records damage for xp splitting
+        if(target_ent->m_type == EntType::CRITTER)
+        {
+            Aggro aggressor;
+            aggressor.name = ent.name();
+            aggressor.idx = ent.m_idx;
+            for (auto tempEnt = target_ent->m_aggro_list.begin();tempEnt != target_ent->m_aggro_list.end();)
+            {
+                if (tempEnt->name == ent.name())
+                {
+                    aggressor = *tempEnt;
+                    target_ent->m_aggro_list.erase(tempEnt);
+                    break;
+                }
+                else ++tempEnt;
+            }
+            aggressor.aggro += -scale * ent.m_char->m_char_data.m_current_attribs.m_ThreatLevel;//scale is negative
+            aggressor.damage += -scale;
+
+            if (target_ent->m_aggro_list.empty() || aggressor.aggro > target_ent->m_aggro_list[0].aggro)
+                target_ent->m_aggro_list.push_front(aggressor);
+            else
+                target_ent->m_aggro_list.push_back(aggressor);
+
+            for (auto tar :target_ent->m_aggro_list)
+                qCDebug(logNPCs) << tar.aggro << tar.damage << tar.name;//dump a list of aggro for debugging purposes
+        }
+
     }
     else if (lower_name == "heal")
     {
@@ -1161,15 +1249,24 @@ void grantRewards(EntityManager &em, Entity &e)
 {
       for (Entity* pEnt : em.m_live_entlist)
       {
-           if (pEnt->m_type == EntType::PLAYER && glm::distance(e.m_entity_data.m_pos, pEnt->m_entity_data.m_pos) < 100)
-           {
-                sendInfoMessage(MessageChannel::COMBAT, QString("%1 has been defeated!") .arg(e.m_char->getName()), *pEnt->m_client);
-                sendInfoMessage(MessageChannel::COMBAT, QString("You gain %1 inf!") .arg(e.m_char->m_char_data.m_combat_level*10) , *pEnt->m_client);
-                pEnt->m_char->m_char_data.m_influence += e.m_char->m_char_data.m_combat_level*10;
-                giveXp(*pEnt->m_client,  e.m_char->m_char_data.m_combat_level*10);
-           }
+          if (pEnt->m_type == EntType::PLAYER && glm::distance(e.m_entity_data.m_pos, pEnt->m_entity_data.m_pos) < 100)
+          {
+              sendInfoMessage(MessageChannel::COMBAT, QString("%1 has been defeated!") .arg(e.m_char->getName()), *pEnt->m_client);
+          }
+
+          for (auto agg:e.m_aggro_list)
+              if (pEnt->m_idx == agg.idx && pEnt->m_client)
+              {
+                  uint32_t share = uint32_t(e.m_char->m_char_data.m_combat_level * 10                       // replace with proper exp values
+                          * std::min((agg.damage/e.m_char->m_max_attribs.m_HitPoints), 1.0f));   // replace with a function to determine shares
+
+                  sendInfoMessage(MessageChannel::COMBAT, QString("You gain %1 inf!") .arg(share) , *pEnt->m_client);
+                  pEnt->m_char->m_char_data.m_influence += share;
+                  giveXp(*pEnt->m_client, share);
+              }
       }
-      em.removeEntityFromActiveList(&e);         //todo: some sort of delay
+      e.m_is_fading = true;
+      e.m_fading_direction=FadeDirection::Out;
 }
 
 void increaseLevel(Entity &ent)
@@ -1332,8 +1429,8 @@ void giveXp(MapClientSession &sess, uint32_t xp)
     uint32_t current_xp = getXP(*sess.m_ent->m_char);
 
     GameDataStore &data(getGameData());
-    if (data.m_uses_xp_mod && 
-        data.m_xp_mod_startdate <= QDateTime::currentDateTime() && 
+    if (data.m_uses_xp_mod &&
+        data.m_xp_mod_startdate <= QDateTime::currentDateTime() &&
         data.m_xp_mod_enddate >= QDateTime::currentDateTime())
     {
         xp *= data.m_xp_mod_multiplier;
@@ -1659,11 +1756,11 @@ void removeClue(MapClientSession &cl, Clue clue)
 void addSouvenir(MapClientSession &cl, Souvenir souvenir)
 {
     vSouvenirList souvenir_list = cl.m_ent->m_player->m_souvenirs;
-    if(souvenir_list.size() > 0)
-        souvenir.m_idx = souvenir_list.size(); // Server sets the idx
+    if(!souvenir_list.empty())
+        souvenir.m_idx = int32_t(souvenir_list.size()); // Server sets the idx
 
     qCDebug(logScripts) << "Souvenir m_idx: " << souvenir.m_idx << " about to be added";
-    souvenir_list.push_back(souvenir);
+    souvenir_list.emplace_back(souvenir);
     cl.m_ent->m_player->m_souvenirs = souvenir_list;
     markEntityForDbStore(cl.m_ent, DbStoreFlags::Full);
     cl.addCommand<SouvenirListHeaders>(souvenir_list);
@@ -1722,6 +1819,7 @@ void removeContact(MapClientSession &sess, Contact contact)
     {
         contacts.erase(contacts.begin() + count);
         sess.m_ent->m_player->m_contacts = contacts;
+        sess.m_ent->m_entity_update_flags.setFlag(sess.m_ent->UpdateFlag::FULL);
         markEntityForDbStore(sess.m_ent, DbStoreFlags::Full);
         sess.addCommand<ContactStatusList>(contacts);
     }
@@ -1874,11 +1972,8 @@ void changeHP(Entity &e, float val)
             e.m_char->m_char_data.m_current_attribs.m_HitPoints = 0.0f;
             e.m_char->m_char_data.m_current_attribs.m_Endurance = 0.0f;
 
-            if(e.m_type == EntType::PLAYER)
-            {
-                setStateMode(e, ClientStates::DEAD);
-                checkMovement(e);
-            }
+            setStateMode(e, ClientStates::DEAD);
+            checkMovement(e);
         }
     }
 }
@@ -1979,7 +2074,8 @@ RelayRaceResult getRelayRaceResult(MapClientSession &cl, int segment)
 }
 
 
-uint addEnemy(MapInstance &mi, QString &name, glm::vec3 &loc, int variation, glm::vec3 &ori, QString &npc_name, int level, QString &faction_name, int f_rank)
+uint32_t addEnemy(MapInstance &mi, QString &name, glm::vec3 &loc, int variation, glm::vec3 &ori, QString &npc_name,
+              int level, QString &faction_name, int /*f_rank*/)
 {
     const NPCStorage & npc_store(getGameData().getNPCDefinitions());
     const Parse_NPC * npc_def = npc_store.npc_by_name(&name);
@@ -2036,7 +2132,12 @@ uint addVictim(MapInstance &mi, QString &name, glm::vec3 &loc, int variation, gl
     e->m_faction_data.m_faction_name = "Citizen";
 
     //Required to send changes to clients
-    e->m_pchar_things = true;
+    e->m_entity_update_flags.setFlag(e->UpdateFlag::FULL);
+    e->m_entity_update_flags.setFlag(e->UpdateFlag::FX, false);
+    e->m_entity_update_flags.setFlag(e->UpdateFlag::STATS, false);
+    e->m_entity_update_flags.setFlag(e->UpdateFlag::BUFFS, false);
+    e->m_entity_update_flags.setFlag(e->UpdateFlag::TARGET, false);
+
 
     forcePosition(*e, loc);
     forceOrientation(*e, ori);

@@ -1,6 +1,6 @@
 /*
  * SEGS - Super Entity Game Server
- * http://www.segs.io/
+ * http://www.segs.dev/
  * Copyright (c) 2006 - 2019 SEGS Team (see AUTHORS.md)
  * This software is licensed under the terms of the 3-clause BSD License. See LICENSE.md for details.
  */
@@ -26,6 +26,7 @@
 #include "Common/GameData/seq_serializers.h"
 #include "Common/GameData/shop_serializers.h"
 #include "Common/GameData/shop_definitions.h"
+#include "Common/GameData/bodypart_serializers.h"
 #include "Common/GameData/CommonNetStructures.h"
 #include "Logging.h"
 #include "Settings.h"
@@ -224,12 +225,12 @@ template<class TARGET,unsigned int CRC>
 bool read_data_to(const QString &directory_path,const QString &storage,TARGET &target)
 {
     QElapsedTimer timer;
-
+    QFSWrapper wrap;
     QDebug deb=qDebug().noquote().nospace();
     deb << "Reading "<<directory_path<<storage<<" ... ";
     timer.start();
     BinStore bin_store;
-    if(!bin_store.open(directory_path+storage,CRC))
+    if(!bin_store.open(wrap,directory_path+storage,CRC))
     {
         deb << "failure";
         qWarning().noquote() << "Couldn't load "<<storage<<" from" << directory_path;
@@ -312,15 +313,21 @@ bool GameDataStore::read_game_data(const QString &directory_path)
         return false;
     if(!read_store_depts_data(directory_path)) //Not needed?
         return false;
+    if(!read_sequencer_types(directory_path))
+        return false;
+    if(!read_body_parts(directory_path))
+        return false;
     qInfo().noquote() << "Finished reading game data:  done in"<<float(load_timer.elapsed())/1000.0f<<"s";
     {
         TIMED_LOG({
                       static_cast<HashBasedPacker *>(packer_instance)->fill_hashes(*this);
                       m_npc_store.prepare_dictionaries();
                       auto packer = static_cast<IndexedPacker *>(m_index_based_packer);
+                      int idx=0;
                       for(const FxInfo &fx : m_fx_infos)
                       {
                           packer->addString(fx.fxname);
+                          m_name_to_fx_index[fx.fxname.toLower()] = idx++;
                       }
                       packer->sortEntries();
                   },"Postprocessing runtime data .. ");
@@ -344,10 +351,10 @@ uint32_t GameDataStore::expDebtForLevel(uint32_t lev) const
 uint32_t GameDataStore::expMaxLevel() const
 {
     // return -1 because level is stored in indexed array (starting 0)
-    return m_experience_and_debt_per_level.m_ExperienceRequired.size()-1;
+    return uint32_t(m_experience_and_debt_per_level.m_ExperienceRequired.size()-1);
 }
 
-int GameDataStore::countForLevel(uint32_t lvl, const std::vector<uint32_t> &schedule) const
+uint32_t GameDataStore::countForLevel(uint32_t lvl, const std::vector<uint32_t> &schedule) const
 {
     uint32_t i = 0;
 
@@ -360,12 +367,21 @@ int GameDataStore::countForLevel(uint32_t lvl, const std::vector<uint32_t> &sche
     return i;
 }
 
+FxInfo *GameDataStore::getFxInfoByName(const QByteArray &name)
+{
+    int idx = m_name_to_fx_index.value(name.toLower(),-1);
+    if(idx==-1)
+        return nullptr;
+    return m_fx_infos.data()+idx;
+}
+
 bool GameDataStore::read_costumes(const QString &directory_path)
 {
+    QFSWrapper wrap;
     QDebug deb=qDebug().noquote().nospace();
     deb << "Reading " << directory_path << "bin/costume.bin ... ";
     BinStore costumes_store;
-    if(!costumes_store.open(directory_path + "bin/costume.bin", costumesets_i0_requiredCrc))
+    if(!costumes_store.open(wrap,directory_path + "bin/costume.bin", costumesets_i0_requiredCrc))
     {
         deb << "failure";
         qWarning().noquote() << "Couldn't load bin/costume.bin from" << directory_path;
@@ -386,11 +402,12 @@ bool GameDataStore::read_costumes(const QString &directory_path)
 
 bool GameDataStore::read_colors( const QString &directory_path )
 {
+    QFSWrapper wrap;
     QDebug deb=qDebug().noquote().nospace();
     deb << "Reading " << directory_path << "bin/supergroupColors.bin ... ";
     BinStore sg_color_store;
 
-    if(!sg_color_store.open(directory_path + "bin/supergroupColors.bin", palette_i0_requiredCrc))
+    if(!sg_color_store.open(wrap,directory_path + "bin/supergroupColors.bin", palette_i0_requiredCrc))
     {
         deb << "failure";
         qWarning().noquote() << "Couldn't load bin/supergroupColors.bin from" << directory_path;
@@ -489,7 +506,7 @@ bool GameDataStore::read_settings(const QString &/*directory_path*/)
     config.beginGroup(QStringLiteral("Experimental"));
 
     // constrain to a reasonable range
-    int ticks = config.value(QStringLiteral("world_update_ticks_per_sec"), "").toInt();
+    int ticks = config.value(QStringLiteral("world_update_ticks_per_sec"), "30").toInt();
     m_world_update_ticks_per_sec = std::min(std::max(ticks, minimumTicksPerSecond), maximumTicksPerSecond);
 
     config.endGroup(); // Experiemental
@@ -500,7 +517,7 @@ bool GameDataStore::read_settings(const QString &/*directory_path*/)
 bool GameDataStore::read_powers(const QString &directory_path)
 {
     qDebug() << "Loading powers:";
-    if(QFile(directory_path+"bin/powers.json").exists() && loadFrom(directory_path+"bin/powers.json", m_all_powers))
+    if(QFile(directory_path+"powers.json").exists() && loadFrom(directory_path+"powers.json", m_all_powers))
     {
         qDebug() << "Loaded power data from powers.json!";
             return true;
@@ -577,6 +594,34 @@ bool GameDataStore::read_store_depts_data(const QString &directory_path)
     qDebug() << "Loading shop depts:";
     return read_data_to<AllShopDepts_Data, shopdepts_i0_requiredCrc>(directory_path, "bin/depts.bin", m_shop_depts_data);
 }
+bool GameDataStore::read_sequencer_types(const QString &directory_path)
+{
+    QElapsedTimer timer;
+
+    qDebug() << "Loading Seq types:";
+
+    QDebug deb=qDebug().noquote().nospace();
+
+    bool res=loadFrom(directory_path+"converted/ent_types.crl.json",m_seq_types);
+    if(res)
+        deb << " OK in "<<QString::number(float(timer.elapsed())/1000.0f,'g',4)<<"s";
+    else
+    {
+        deb << "failure";
+        qWarning().noquote() << "Couldn't load" << directory_path<<"ent_types.crl_json: wrong file format?";
+    }
+    return res;
+}
+
+bool GameDataStore::read_body_parts(const QString &directory_path)
+{
+    qDebug() << "Loading body parts:";
+    bool res =
+        read_data_to<BodyPartsStorage, bodyparts_i0_requiredCrc>(directory_path, "bin/BodyParts.bin", m_body_parts);
+    if(res)
+        m_body_parts.postProcess();
+    return res;
+}
 
 const Parse_PowerSet& GameDataStore::get_powerset(uint32_t pcat_idx, uint32_t pset_idx)
 {
@@ -591,6 +636,11 @@ const Power_Data& GameDataStore::get_power_template(uint32_t pcat_idx, uint32_t 
 Power_Data * GameDataStore::editable_power_tpl(uint32_t pcat_idx, uint32_t pset_idx, uint32_t pow_idx)
 {
     return &m_all_powers.m_categories[pcat_idx].m_PowerSets[pset_idx].m_Powers[pow_idx];
+}
+
+int GameDataStore::getFxNamePackId(const QString &name)
+{
+    return m_index_based_packer->getIndex(name);
 }
 
 const StoredPowerCategory& GameDataStore::get_power_category(uint32_t pcat_idx)

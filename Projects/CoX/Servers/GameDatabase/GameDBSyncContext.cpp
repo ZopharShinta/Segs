@@ -1,6 +1,6 @@
 /*
  * SEGS - Super Entity Game Server
- * http://www.segs.io/
+ * http://www.segs.dev/
  * Copyright (c) 2006 - 2019 SEGS Team (see AUTHORS.md)
  * This software is licensed under the terms of the 3-clause BSD License. See LICENSE.md for details.
  */
@@ -241,7 +241,7 @@ bool GameDbSyncContext::performUpdate(const CharacterUpdateData &data)
     m_prepared_char_update->bindValue(QStringLiteral(":char_name"), data.m_char_name);
     m_prepared_char_update->bindValue(QStringLiteral(":costume_data"), data.m_costume_data);
     m_prepared_char_update->bindValue(QStringLiteral(":chardata"), data.m_char_data);
-    m_prepared_char_update->bindValue(QStringLiteral(":entitydata"), data.m_entitydata);
+    m_prepared_char_update->bindValue(QStringLiteral(":entitydata"), data.m_entity_data);
     m_prepared_char_update->bindValue(QStringLiteral(":player_data"), data.m_player_data);
     m_prepared_char_update->bindValue(QStringLiteral(":supergroup_id"), data.m_supergroup_id);
 

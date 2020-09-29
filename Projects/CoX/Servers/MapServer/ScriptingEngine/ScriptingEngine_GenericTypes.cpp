@@ -1,6 +1,6 @@
 /*
  * SEGS - Super Entity Game Server
- * http://www.segs.io/
+ * http://www.segs.dev/
  * Copyright (c) 2006 - 2019 SEGS Team (see AUTHORS.md)
  * This software is licensed under the terms of the 3-clause BSD License. See LICENSE.md for details.
  */
@@ -8,6 +8,8 @@
 #include "Messages/Map/ChatMessage.h"
 #include "Messages/Map/Browser.h"
 #include "Messages/Map/FloatingDamage.h"
+#include "Messages/Map/FloatingInfo.h"
+#include "Messages/Map/FloatingInfoStyles.h"
 #include "Messages/Map/InfoMessageCmd.h"
 #include "Messages/Map/StandardDialogCmd.h"
 #include "Messages/Map/StoresEvents.h"
@@ -105,21 +107,21 @@ void ScriptingEngine::register_GenericTypes()
     {
         e = getEntity(mi, entityIdx);
         if(e != nullptr)
-           mi->startTimer(entityIdx);
+           mi->startLuaTimer(entityIdx);
     };
 
     m_private->m_lua["MapInstance"]["StopTimer"] = [this](uint32_t entityIdx)
     {
         e = getEntity(mi, entityIdx);
         if(e != nullptr)
-            mi->stopTimer(entityIdx);
+            mi->stopLuaTimer(entityIdx);
     };
 
     m_private->m_lua["MapInstance"]["ClearTimer"] = [this](uint32_t entityIdx)
     {
         e = getEntity(mi, entityIdx);
         if(e != nullptr)
-            mi->clearTimer(entityIdx);
+            mi->clearLuaTimer(entityIdx);
     };
 
     //MapClientSession

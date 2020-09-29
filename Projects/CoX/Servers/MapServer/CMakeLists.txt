@@ -15,7 +15,7 @@ SET(target_CPP
     MapTemplate.cpp
     MessageHelpers.cpp
     NetCommandManager.cpp
-    SlashCommand.cpp
+    NetFxHelpers.cpp
     WorldSimulation.cpp
 )
 SET(target_INCLUDE
@@ -33,7 +33,7 @@ SET(target_INCLUDE
     MapTemplate.h
     MessageHelpers.h
     NetCommandManager.h
-    SlashCommand.h
+    NetFxHelpers.h
     WorldSimulation.h
 )
 
@@ -51,8 +51,11 @@ target_link_libraries(MapServer PUBLIC Qt5::Core)
 target_link_libraries(MapServer PUBLIC gameData)
 
 add_subdirectory(ScriptingEngine)
+add_subdirectory(SlashCommands)
 
 target_link_libraries(MapServer PUBLIC Qt5::Core ScriptingEngine)
+target_link_libraries(MapServer PRIVATE SlashCommands)
+
 
 if(ENABLE_TESTS)
     add_subdirectory(UnitTests)

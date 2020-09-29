@@ -1,6 +1,6 @@
 /*
  * SEGS - Super Entity Game Server
- * http://www.segs.io/
+ * http://www.segs.dev/
  * Copyright (c) 2006 - 2019 SEGS Team (see AUTHORS.md)
  * This software is licensed under the terms of the 3-clause BSD License. See LICENSE.md for details.
  */
@@ -75,7 +75,7 @@ struct CharacterUpdateData
     // Cerealized blobs
     QString m_costume_data;
     QString m_char_data;
-    QString m_entitydata;
+    QString m_entity_data;
     QString m_player_data;
     uint32_t m_supergroup_id;
     uint32_t m_id;
@@ -83,7 +83,7 @@ struct CharacterUpdateData
     void serialize( Archive & ar )
     {
         ar( m_char_name, m_costume_data );
-        ar( m_char_data, m_entitydata, m_player_data );
+        ar( m_char_data, m_entity_data, m_player_data );
         ar( m_supergroup_id, m_id );
     }
 };

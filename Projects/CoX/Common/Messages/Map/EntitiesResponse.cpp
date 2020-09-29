@@ -1,6 +1,6 @@
 /*
  * SEGS - Super Entity Game Server
- * http://www.segs.io/
+ * http://www.segs.dev/
  * Copyright (c) 2006 - 2019 SEGS Team (see AUTHORS.md)
  * This software is licensed under the terms of the 3-clause BSD License. See LICENSE.md for details.
  */
@@ -19,11 +19,7 @@
 #include "GameData/Movement.h"
 #include "GameData/playerdata_definitions.h"
 #include "GameData/map_definitions.h"
-//#include "MapClientSession.h"
 #include "MapEvents.h"
-//#include "MapInstance.h"
-//#include "EntityUpdateCodec.h"
-//#include "DataHelpers.h"
 #include "Logging.h"
 
 #include <QByteArray>
